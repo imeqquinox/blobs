@@ -46,6 +46,7 @@ const fragmentShader = `
 
   void main() {
     vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / min(u_res.x, u_res.y);
+    vec2 mouse = (u_mouse - 0.5 * u_res) / min(u_res.x, u_res.y);
 
     float d = 1e9;
     float k = 0.25;
@@ -58,6 +59,8 @@ const fragmentShader = `
 
     vec2 r1 = vec2(0.25, 0.15);
     d = smin(d, sdRoundedBox(uv, r1, vec2(0.12, 0.10), 0.04), k);
+
+    d = smin(d, sdCircle(uv, mouse, 0.2), k);
 
     float fill = 1.0 - smoothstep(-0.004, 0.004, d);
     vec3 col1 = vec3(0.35, 0.55, 1.0);
