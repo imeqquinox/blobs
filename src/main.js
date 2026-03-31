@@ -26,40 +26,46 @@ const fragmentShader = `
   uniform vec2 u_res;
   uniform vec2 u_mouse; 
 
-  const float threshold = 0.95;
+  float smin(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5*(b-a)/k, 0.0, 1.0);
+    return mix(b, a, h) - k*h*(1.0-h);
+  }
 
-  struct Metaball {
-    vec3 color;
-    vec2 position;
-    float radius; 
-  };
+  float sdCircle(vec2 p, vec2 c, float r) {
+    return length(p - c) - r;
+  }
+
+  float sdBox(vec2 p, vec2 c, vec2 b) {
+    vec2 d = abs(p - c) - b;
+    return length(max(d, 0.0)) + min(max(d.x, d.y), 0.0);
+  }
+
+  float sdRoundedBox(vec2 p, vec2 c, vec2 b, float r) {
+    return sdBox(p, c, b - r) - r;
+  }
 
   void main() {
-    Metaball metaballs[4];
-    metaballs[0] = Metaball(vec3(1.0,0.0,0.0), vec2(100.0,90.0), 60.0);
-    metaballs[1] = Metaball(vec3(1.0,0.0,0.0), vec2(120.0,200.0), 50.0);
-    metaballs[2] = Metaball(vec3(0.0,0.0,1.0), vec2(200.0,90.0), 45.0);
-    metaballs[3] = Metaball(vec3(1.0,0.0,0.0), vec2(400.0,190.0), 45.0);
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / min(u_res.x, u_res.y);
 
-    metaballs[0].position.x = u_res.x*sin(u_time*1.2314)/2.0 + u_res.x/2.0;
-    metaballs[0].position.y = u_res.y*cos(u_time*1.2314)/2.0 + u_res.y/2.0;	
-    metaballs[1].position = u_mouse;
+    float d = 1e9;
+    float k = 0.25;
 
-    vec3 col = vec3(0.0, 0.0, 0.0);
-    float infl = 0.0;
+    vec2 c1 = vec2(-0.35, -0.3);
+    d = smin(d, sdCircle(uv, c1, 0.15), k);
 
-    for(int i = 0; i < 4; i++) {
-      Metaball mb = metaballs[i];
-      float currInfl = mb.radius * mb.radius;
-      currInfl /= (pow(abs(gl_FragCoord.x-mb.position.x),2.0) + pow(abs(gl_FragCoord.y-mb.position.y),2.0));
-      infl += currInfl;
-      col += mb.color*currInfl;
-    } 
+    vec2 c2 = vec2(-0.25, 0.25);
+    d = smin(d, sdCircle(uv, c2, 0.3), k);
 
-    if (infl > threshold)
-      col = clamp(col / infl, 0.0, 1.0);
-    else
-      col = vec3(0.0);
+    vec2 r1 = vec2(0.25, 0.15);
+    d = smin(d, sdRoundedBox(uv, r1, vec2(0.12, 0.10), 0.04), k);
+
+    float fill = 1.0 - smoothstep(-0.004, 0.004, d);
+    vec3 col1 = vec3(0.35, 0.55, 1.0);
+    vec3 col2 = vec3(0.55, 0.35, 1.0);
+    vec3 bodyCol = mix(col1, col2, uv.x * 0.5 + 0.5);
+
+    vec3 col = vec3(0.0);
+    col += bodyCol * fill;
 
     gl_FragColor = vec4(col, 1.0);
   }
@@ -78,14 +84,13 @@ const timer = new THREE.Timer();
 
 function resize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
-  uniforms.u_res = { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
+  uniforms.u_res.value.set(window.innerWidth, window.innerHeight);
 }
 
 window.addEventListener('resize', resize);
 
 window.addEventListener('mousemove', (e) => {
-  uniforms.u_mouse.value.x = e.clientX;
-  uniforms.u_mouse.value.y = (window.innerHeight - e.clientY);
+  uniforms.u_mouse.value.set(e.clientX, window.innerHeight - e.clientY);
 });
 
 function animate(time) {
